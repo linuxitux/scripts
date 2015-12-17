@@ -4,7 +4,7 @@
 # Author     : linuxitux
 # Date       : 06-08-2015
 # Usage      : ./update
-# Notes      : -
+# Notes      : https://www.freebsd.org/doc/handbook/updating-upgrading.html
 
 echo "Updating world and generic kernel..."
 echo "===================================="
