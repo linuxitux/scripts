@@ -1,0 +1,100 @@
+#!/bin/bash
+# Title      : firewall
+# Description: Creates a very basic iptables firewall
+# Author     : linuxitux
+# Date       : 22-08-2015
+# Usage      : ./firewall >/dev/null 2>&1
+# Notes      : https://www.linuxito.com/seguridad/411-como-configurar-el-cortafuegos-en-debian
+
+#=======================
+
+# Server configuration
+IP="192.168.1.100"
+IFACE="eth0"
+IPTABLES="/sbin/iptables"
+
+# Services
+SSH_PORT=2222
+HTTP_PORT=80
+HTTPS_PORT=443
+
+#=======================
+
+# Empty all chains and counters
+$IPTABLES -F
+$IPTABLES -X
+$IPTABLES -Z
+
+# Kernel configuration
+#
+# Ignore icmp broadcasts
+echo -n '1' > /proc/sys/net/ipv4/icmp_echo_ignore_broadcasts
+# Disable Source Routing
+echo -n '0' > /proc/sys/net/ipv4/conf/all/accept_source_route
+# Disable ICMP redirects
+echo -n '0' > /proc/sys/net/ipv4/conf/all/accept_redirects
+# Protect against "bad error messages"
+echo -n '1' > /proc/sys/net/ipv4/icmp_ignore_bogus_error_responses
+# Disable ip forwarding
+echo -n '0' > /proc/sys/net/ipv4/ip_forward
+# Log suspicious packets, "source routed" and redirects
+echo -n '1' >/proc/sys/net/ipv4/conf/all/log_martians
+
+# Block everything on INPUT and FORWARD chains by default
+$IPTABLES -P INPUT DROP
+$IPTABLES -P FORWARD DROP
+
+# Allow any outgoing traffic (tune this)
+$IPTABLES -P OUTPUT ACCEPT
+
+# Block new TCP connections not starting with SYN
+$IPTABLES -A INPUT -i $IFACE -p tcp ! --syn -m state --state NEW -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "TCP RST,ACK,FIN"
+$IPTABLES -A INPUT -i $IFACE -p tcp ! --syn -m state --state NEW -j DROP
+
+# Block incoming fragments
+$IPTABLES -A INPUT -i $IFACE -f -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "Fragment Packets"
+$IPTABLES -A INPUT -i $IFACE -f -j DROP
+
+# Block malformed packets
+$IPTABLES -A INPUT -i $IFACE -p tcp --tcp-flags ALL FIN,URG,PSH -j DROP
+$IPTABLES -A INPUT -i $IFACE -p tcp --tcp-flags ALL ALL -j DROP
+$IPTABLES -A INPUT -i $IFACE -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
+
+# Block NULL packets
+$IPTABLES -A INPUT -i $IFACE -p tcp --tcp-flags ALL NONE -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "NULL Packets"
+$IPTABLES -A INPUT -i $IFACE -p tcp --tcp-flags ALL NONE -j DROP
+
+# Block malformed "Christmas tree" packets
+$IPTABLES -A INPUT -i $IFACE -p tcp --tcp-flags SYN,FIN SYN,FIN -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "XMAS Packets"
+$IPTABLES -A INPUT -i $IFACE -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
+
+# Block FIN Scan attacks
+$IPTABLES -A INPUT -i $IFACE -p tcp --tcp-flags FIN,ACK FIN -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "Fin Packets Scan"
+$IPTABLES -A INPUT -i $IFACE -p tcp --tcp-flags FIN,ACK FIN -j DROP
+
+# Validate TCP flags
+$IPTABLES -A INPUT -i $IFACE -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP
+
+# Block invalid packets
+$IPTABLES -A INPUT -m conntrack --ctstate INVALID -j DROP
+
+# Allow anything on loopback interface
+$IPTABLES -A INPUT -i lo -j ACCEPT
+
+# Allow packets from established connections
+$IPTABLES -A INPUT -p all -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+# Allow ICMP ping
+$IPTABLES -A INPUT -p icmp --icmp-type 8 -m conntrack --ctstate NEW -j ACCEPT
+
+# Open SSH port
+$IPTABLES -A INPUT -p tcp -d $IP --sport 1024:65535 --dport $SSH_PORT -m state --state NEW -j ACCEPT
+
+# Open HTTP and HTTPS ports
+$IPTABLES -A INPUT -p tcp -d $IP --sport 1024:65535 --dport $HTTP_PORT -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -p tcp -d $IP --sport 1024:65535 --dport $HTTPS_PORT -m state --state NEW -j ACCEPT
+
+# Reject and log everything else
+$IPTABLES -A INPUT -j LOG
+$IPTABLES -A FORWARD -j LOG
+$IPTABLES -A INPUT -j DROP
