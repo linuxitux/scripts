@@ -1,0 +1,11 @@
+#!/bin/tcsh
+# Title      : ports_check
+# Description: Ports status validation
+# Author     : linuxitux
+# Date       : 21-12-2015
+# Usage      : ./ports_check
+# Notes      : man portmaster
+
+portmaster -y --check-depends \
+&& portmaster --check-port-dbdir \
+&& portmaster --clean-packages
