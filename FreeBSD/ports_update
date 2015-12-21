@@ -1,0 +1,11 @@
+#!/bin/csh
+# Title      : ports_update
+# Description: Ports update from sources
+# Author     : linuxitux
+# Date       : 07-07-2015
+# Usage      : ./ports_update
+# Notes      : https://www.freebsd.org/doc/handbook/updating-upgrading.html
+
+portsnap fetch && portsnap update
+
+portmaster -aD && portmaster --clean-distfiles
