@@ -6,19 +6,15 @@
 # Usage      : ./firewall >/dev/null 2>&1
 # Notes      : https://www.linuxito.com/seguridad/411-como-configurar-el-cortafuegos-en-debian
 
-#=======================
-
 # Server configuration
 IP="192.168.1.100"
 IFACE="eth0"
 IPTABLES="/sbin/iptables"
 
-# Services
+# Services configuration
 SSH_PORT=2222
 HTTP_PORT=80
 HTTPS_PORT=443
-
-#=======================
 
 # Empty all chains and counters
 $IPTABLES -F
