@@ -1,0 +1,11 @@
+#!/bin/bash
+# Title      : update
+# Description: Dumb script to update packages
+# Author     : linuxitux
+# Date       : 08-07-2015
+# Usage      : ./update
+# Notes      : man apt-get
+
+apt-get update \
+&& apt-get upgrade \
+&& apt-get clean
