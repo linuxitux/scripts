@@ -1,11 +1,11 @@
 #!/bin/bash
-# Title      : verify_certs.sh
+# Title      : verify_certs
 # Description: Mail about expiring certificates
 # Author     : linuxitux
 # Date       : 08-07-2015
-# Usage      : ./verify_certs.sh
+# Usage      : ./verify_certs
 # Notes      : Add this to your crontab on a weekly basis
-#10 1 * * 1 root /root/scripts/verify_certs.sh >> /var/log/verify_certs.log 2>&1
+#10 1 * * 1 root /root/scripts/verify_certs >> /var/log/verify_certs.log 2>&1
 
 SERVIDOR=$(hostname)
 ASUNTO="Advertencia: Certificados por expirar en el servidor $SERVIDOR"
