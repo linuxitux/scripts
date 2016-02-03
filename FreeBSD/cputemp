@@ -1,0 +1,18 @@
+#!/bin/sh
+# Title      : cputemp
+# Description: Prints the average CPU core temperature
+# Author     : linuxitux
+# Date       : 12-01-2016
+# Usage      : ./cputemp
+# Notes      : kldload coretemp
+
+TEMP=0
+CPUS=0
+for T in $(sysctl -a | grep temperature | cut -d':' -f2 | tr -d " " | tr -d C | tr -d .)
+do
+  TEMP=$((TEMP + T))
+  CPUS=$((CPUS + 1))
+done
+TEMP=$((TEMP / CPUS))
+echo $((TEMP / 10))
+
