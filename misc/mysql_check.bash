@@ -5,7 +5,7 @@
 # Date       : 24-08-2015
 # Usage      : ./mysqlcheck.bash
 # Notes      : For example, you can run this every 10 minutes
-#*/10 * * * * root /root/scripts/mysql_check.bash > /var/log/mysql_check.log 2>&1
+#*/10 * * * * root /root/scripts/mysql_check.bash >> /var/log/mysql_check.log 2>&1
 
 DATE=$(date +%Y-%m-%d_%H-%M-%S)
 STATUS=$(/etc/init.d/mysql status 2>&1)
