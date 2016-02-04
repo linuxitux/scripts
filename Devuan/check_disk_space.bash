@@ -4,7 +4,7 @@
 # Author     : linuxitux
 # Date       : 27-05-2014
 # Usage      : ./check_disk_space.bash
-# Notes      : Edit mailto
+# Notes      : Edit limit & mailto
 # Notes      : Run this script every hour if you want
 #33 * * * * root /root/scripts/check_disk_space.bash >> /var/log/check_disk_space.log 2>&1
 
