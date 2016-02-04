@@ -9,7 +9,7 @@
 BKP_DIR="/backup"   # Where to place database dumps
 TMP_DIR="/tmp"      # Directory for temporary files
 MY_USER="backup"    # Valid MySQL user
-MY_PASS="****"      # User's Password
+MY_PASS="****"      # User's password
 
 ARGS="-u$MY_USER -p$MY_PASS --add-drop-database --add-locks \
 --create-options --complete-insert --comments --disable-keys \
