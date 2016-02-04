@@ -4,14 +4,16 @@
 # Author     : linuxitux
 # Date       : 08-07-2015
 # Usage      : ./verify_certs
+# Notes      : Edit mailto, days and certs
 # Notes      : Add this to your crontab on a weekly basis
 #10 1 * * 1 root /root/scripts/verify_certs >> /var/log/verify_certs.log 2>&1
 
+MAILTO="dvader@linuxito.com"
+DAYS=10
+CERTS="/usr/local/nginx/conf/*.crt /usr/local/apache/conf/ssl.crt/*.crt /etc/letsencrypt/live/example.com/cert.pem"
+
 SERVER=$(hostname)
 SUBJECT="Warning: SSL certificates about to expire in $SERVER"
-MAILTO="linuxito@openmailbox.org"
-CERTS="/usr/local/nginx/conf/*.crt /usr/local/apache/conf/ssl.crt/*.crt /etc/letsencrypt/live/example.com/cert.pem"
-DAYS=10
 MAIL=""
 
 echo "[$(date)]"
