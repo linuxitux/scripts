@@ -22,7 +22,7 @@ USO="/tmp/df.tmp"
 MAIL="/tmp/mail.tmp"
 
 # Valores de utilización de espacio en cada dispositivo (excluye filesystems temporales)
-df -h | grep "/dev" | grep -v "udev" | grep -v "tmpfs" > $USO
+df -P | grep "/dev" | grep -v "udev" | grep -v "tmpfs" > $USO
 
 WARNING="no"
 

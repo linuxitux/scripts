@@ -22,7 +22,7 @@ DF="/tmp/df.tmp"
 MAIL="/tmp/mail.tmp"
 
 # Disk usage on each device/partition (excluding temp filesystems)
-df -h | grep "/dev" | grep -v "udev" | grep -v "tmpfs" > $DF
+df -P | grep "/dev" | grep -v "udev" | grep -v "tmpfs" > $DF
 
 WARNING="no"
 
