@@ -26,7 +26,7 @@ DATE=$(date +%Y-%m-%d_%H%M%S)
 
 # Copy backups from today/yesterday to Drive folder
 for F in $(find $BACKUP_DIR -type f -mtime -1 2>/dev/null); do
-        cp $F $DRIVE_DIR
+        cp -n $F $DRIVE_DIR
 done
 
 # Delete backup copies older than $DAYS days
