@@ -8,15 +8,17 @@
 # Notes      : Run this script every day if you want
 #17 2 * * * root /root/scripts/check_updates.bash >> /var/log/check_updates.log 2>&1
 
+LANG=C
+
 MAILTO="sysadmin@linuxito.com"
 
 HOST=$(hostname)
 
 /usr/sbin/apt-get update > /dev/null 2>&1
 
-UPDATES=$(/usr/bin/apt-get -s -q -u upgrade | grep -v '\.\.\.' | grep -v ':' | grep -v 'Inst ' | grep -v 'Conf ')
+UPDATES=$(/usr/bin/apt-get -s -q -u upgrade | grep Inst 2>/dev/null | sed -e 's/Inst //')
 
-COUNT=$(/usr/bin/apt-get -s -q -u upgrade | grep -v '\.\.\.' | grep -v ':' | grep -v 'Inst ' | grep -v 'Conf ' | grep "upgraded" | cut -d ' ' -f 1)
+COUNT=$(echo "$UPDATES" | wc -l)
 
 if [ "${COUNT}" == "0" ]; then
   exit 0

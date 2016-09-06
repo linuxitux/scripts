@@ -14,9 +14,9 @@ SERVIDOR=$(hostname)
 
 /usr/sbin/apt-get update > /dev/null 2>&1
 
-ACTUALIZACIONES=$(/usr/bin/apt-get -s -q -u upgrade | grep -v '\.\.\.' | grep -v ':' | grep -v 'Inst ' | grep -v 'Conf ')
+ACTUALIZACIONES=$(/usr/bin/apt-get -s -q -u upgrade | grep Inst 2>/dev/null | sed -e 's/Inst //')
 
-CANTIDAD=$(/usr/bin/apt-get -s -q -u upgrade | grep -v '\.\.\.' | grep -v ':' | grep -v 'Inst ' | grep -v 'Conf ' | grep "upgraded" | cut -d ' ' -f 1)
+CANTIDAD=$(echo "$ACTUALIZACIONES" | wc -l)
 
 if [ "${CANTIDAD}" == "0" ]; then
    exit 0
