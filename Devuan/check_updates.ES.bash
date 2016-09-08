@@ -16,11 +16,9 @@ SERVIDOR=$(hostname)
 
 ACTUALIZACIONES=$(/usr/bin/apt-get -s -q -u upgrade | grep Inst 2>/dev/null | sed -e 's/Inst //')
 
-CANTIDAD=$(echo "$ACTUALIZACIONES" | wc -l)
+CANTIDAD=$(echo -n "$ACTUALIZACIONES" | wc -l)
 
-if [ "${CANTIDAD}" == "0" ]; then
-   exit 0
-else
+if [ "$CANTIDAD" -gt 0 ]; then
   ASUNTO="Actualizaciones disponibles para ${SERVIDOR} (${CANTIDAD})"
   MENSAJE="Se encuentran disponibles las siguientes actualizaciones para el servidor ${SERVIDOR}:\n\n${ACTUALIZACIONES}"
   echo -e "${MENSAJE}" | /usr/bin/mail -s "${ASUNTO}" ${DESTINATARIO}
