@@ -16,7 +16,7 @@ SERVIDOR=$(hostname)
 
 ACTUALIZACIONES=$(/usr/bin/apt-get -s -q -u upgrade | grep Inst 2>/dev/null | sed -e 's/Inst //')
 
-CANTIDAD=$(echo -n "$ACTUALIZACIONES" | wc -l)
+CANTIDAD=$(echo -n "$ACTUALIZACIONES" | wc -m)
 
 if [ "$CANTIDAD" -gt 0 ]; then
   ASUNTO="Actualizaciones disponibles para ${SERVIDOR} (${CANTIDAD})"
