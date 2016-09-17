@@ -21,6 +21,7 @@ UPDATES=$(/usr/bin/apt-get -s -q -u upgrade | grep Inst 2>/dev/null | sed -e 's/
 COUNT=$(echo -n "$UPDATES" | wc -m)
 
 if [ "$COUNT" -gt 0 ]; then
+  COUNT=$(echo "$UPDATES" | wc -l)
   SUBJECT="Updates available for ${HOST} (${COUNT})"
   MESSAGE="The following updates are available for ${HOST}:\n\n${UPDATES}"
   echo -e "${MESSAGE}" | /usr/bin/mail -s "${SUBJECT}" ${MAILTO}
