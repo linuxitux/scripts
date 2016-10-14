@@ -56,6 +56,7 @@ do
     ;;
     -p)
     read -s -p "Enter password: " MYSQL_PASSWD
+    echo
     PASSWD=1
     ;;
   esac
