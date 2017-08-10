@@ -4,10 +4,11 @@
 # Author     : linuxitux
 # Date       : 04-08-2017
 # Usage      : ./mailgun-mta.bash
-# Notes      : This script reads mail headers and content from stdin
+# Notes      : This script reads mail headers and message body from stdin
 
-APIKEY="api:key-XXXX"
-URL="https://api.mailgun.net/v3/XXXX/messages"
+APIKEY="api:key-XXXX" # YOUR MAILGUN API KEY
+URL="https://api.mailgun.net/v3/XXXX/messages" # YOUR MAILGUN URL
+LOG="/var/log/mailgun-mta.log"
 
 MAILFROM="Linuxito <root@localhost.localdomain>"
 MAILTO=""
@@ -54,5 +55,4 @@ curl -s --user $APIKEY $URL \
   -F from="$MAILFROM" \
   -F to="$MAILTO" \
   -F subject="$SUBJECT" \
-  -F html="<-;type=$MIMETYPE" >/dev/null
-
+  -F html="<-;type=$MIMETYPE" >> $LOG 2>&1
