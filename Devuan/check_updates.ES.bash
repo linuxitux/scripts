@@ -9,6 +9,7 @@
 #17 2 * * * root /root/scripts/check_updates.bash >> /var/log/check_updates.log 2>&1
 
 DESTINATARIO="sysadmin@linuxito.com"
+CLIENTE="/usr/bin/mail"
 
 SERVIDOR=$(hostname)
 
@@ -22,5 +23,5 @@ if [ "$CANTIDAD" -gt 0 ]; then
   CANTIDAD=$(echo "$ACTUALIZACIONES" | wc -l)
   ASUNTO="Actualizaciones disponibles para ${SERVIDOR} (${CANTIDAD})"
   MENSAJE="Se encuentran disponibles las siguientes actualizaciones para el servidor ${SERVIDOR}:\n\n${ACTUALIZACIONES}"
-  echo -e "${MENSAJE}" | /usr/bin/mail -s "${ASUNTO}" ${DESTINATARIO}
+  echo -e "${MENSAJE}" | $CLIENTE -s "${ASUNTO}" ${DESTINATARIO}
 fi

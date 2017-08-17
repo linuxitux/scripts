@@ -11,6 +11,7 @@
 LANG=C
 
 MAILTO="sysadmin@linuxito.com"
+MAILER="/usr/bin/mail"
 
 HOST=$(hostname)
 
@@ -24,5 +25,5 @@ if [ "$COUNT" -gt 0 ]; then
   COUNT=$(echo "$UPDATES" | wc -l)
   SUBJECT="Updates available for ${HOST} (${COUNT})"
   MESSAGE="The following updates are available for ${HOST}:\n\n${UPDATES}"
-  echo -e "${MESSAGE}" | /usr/bin/mail -s "${SUBJECT}" ${MAILTO}
+  echo -e "${MESSAGE}" | $MAILER -s "${SUBJECT}" ${MAILTO}
 fi
