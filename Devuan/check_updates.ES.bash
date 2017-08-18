@@ -10,6 +10,7 @@
 
 DESTINATARIO="sysadmin@linuxito.com"
 CLIENTE="/usr/bin/mail"
+#CLIENTE='/root/scripts/mailgun-mta.sh --text -r "Linuxito <root@linuxito.com>"'
 
 SERVIDOR=$(hostname)
 

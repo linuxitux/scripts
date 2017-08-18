@@ -12,6 +12,7 @@ LANG=C
 
 MAILTO="sysadmin@linuxito.com"
 MAILER="/usr/bin/mail"
+#MAILER='/root/scripts/mailgun-mta.sh --text -r "Linuxito <root@linuxito.com>"'
 
 HOST=$(hostname)
 

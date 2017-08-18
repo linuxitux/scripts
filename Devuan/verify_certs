@@ -9,6 +9,9 @@
 #10 1 * * 1 root /root/scripts/verify_certs >> /var/log/verify_certs.log 2>&1
 
 MAILTO="dvader@linuxito.com"
+MAILER="/usr/bin/mail"
+#MAILER='/root/scripts/mailgun-mta.sh --text -r "Linuxito <root@linuxito.com>"'
+
 DAYS=10
 CERTS="/usr/local/nginx/conf/*.crt /usr/local/apache/conf/ssl.crt/*.crt /etc/letsencrypt/live/example.com/cert.pem"
 
@@ -39,9 +42,9 @@ do
 done
 
 if [ "${#MAIL}" -gt 0 ]; then
-  # enviar notificaciÃ³n
+  # enviar notificación
   MAIL=$(echo -e "Status of SSL certificates:\n$MAIL\n")
-  echo -e "$MAIL" | /usr/bin/mail -s "$SUBJECT" $MAILTO
+  echo -e "$MAIL" | $MAILER -s "$SUBJECT" $MAILTO
   echo -e "$MAIL"
 else
   echo "Status of SSL certicates: OK."
