@@ -11,8 +11,9 @@
 LANG=C
 
 MAILTO="sysadmin@linuxito.com"
+MAILFROM="Linuxito <root@linuxito.com>"
 MAILER="/usr/bin/mail"
-#MAILER='/root/scripts/mailgun-mta.sh --text -r "Linuxito <root@linuxito.com>"'
+#MAILER="/root/scripts/mailgun-mta.sh --text"
 
 HOST=$(hostname)
 
@@ -26,5 +27,5 @@ if [ "$COUNT" -gt 0 ]; then
   COUNT=$(echo "$UPDATES" | wc -l)
   SUBJECT="Updates available for ${HOST} (${COUNT})"
   MESSAGE="The following updates are available for ${HOST}:\n\n${UPDATES}"
-  echo -e "${MESSAGE}" | $MAILER -s "${SUBJECT}" ${MAILTO}
+  echo -e "${MESSAGE}" | $MAILER -s "${SUBJECT}" -r "${MAILFROM}" ${MAILTO}
 fi

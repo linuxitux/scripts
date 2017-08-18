@@ -13,8 +13,11 @@ LIMITE="90"
 
 # Destinatario del correo electrónico
 DESTINATARIO="sysadmin@linuxito.com"
-MAILER="/usr/bin/mail"
-#MAILER='/root/scripts/mailgun-mta.sh --text -r "Linuxito <root@linuxito.com>"'
+
+# Configuración de correo electrónico
+REMITENTE="Linuxito <root@linuxito.com>"
+CLIENTE="/usr/bin/mail"
+#CLIENTE="/root/scripts/mailgun-mta.sh --text"
 
 # Nombre del servidor
 SERVIDOR=$(hostname)
@@ -46,7 +49,7 @@ then
   ASUNTO="Poco espacio en disco en ${SERVIDOR}"
   DETALLE=$(cat $MAIL)
   MENSAJE="Queda poco espacio disponible en los siguientes sistemas de archivos:\n\n${DETALLE}"
-  echo -e "${MENSAJE}" | $MAILER -s "${ASUNTO}" ${DESTINATARIO}
+  echo -e "${MENSAJE}" | $CLIENTE -s "${ASUNTO}" -r "${REMITENTE}" ${DESTINATARIO}
 fi
 
 # Borrar archivos temporales

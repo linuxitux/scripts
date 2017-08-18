@@ -13,8 +13,11 @@ LIMIT="90"
 
 # Email address for the alerts
 MAILTO="sysadmin@linuxito.com"
+
+# Email settings
+MAILFROM="Linuxito <root@linuxito.com>"
 MAILER="/usr/bin/mail"
-#MAILER='/root/scripts/mailgun-mta.sh --text -r "Linuxito <root@linuxito.com>"'
+#MAILER="/root/scripts/mailgun-mta.sh --text"
 
 # Host name
 HOST=$(hostname)
@@ -46,7 +49,7 @@ then
   SUBJECT="Disk filling up in ${HOST}"
   DETAIL=$(cat $MAIL)
   MESSAGE="There isn't enough free space in the following filesystems:\n\n${DETAIL}"
-  echo -e "${MESSAGE}" | $MAILER -s "${SUBJECT}" ${MAILTO}
+  echo -e "${MESSAGE}" | $MAILER -s "${SUBJECT}" -r "${MAILFROM}" ${MAILTO}
 fi
 
 # Delete temp files
