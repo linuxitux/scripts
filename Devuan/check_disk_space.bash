@@ -13,6 +13,7 @@ LIMIT="90"
 
 # Email address for the alerts
 MAILTO="sysadmin@linuxito.com"
+MAILER="/usr/bin/mail"
 
 # Host name
 HOST=$(hostname)
@@ -44,7 +45,7 @@ then
   SUBJECT="Disk filling up in ${HOST}"
   DETAIL=$(cat $MAIL)
   MESSAGE="There isn't enough free space in the following filesystems:\n\n${DETAIL}"
-  echo -e "${MESSAGE}" | /usr/bin/mail -s "${SUBJECT}" ${MAILTO}
+  echo -e "${MESSAGE}" | $MAILER -s "${SUBJECT}" ${MAILTO}
 fi
 
 # Delete temp files
