@@ -15,6 +15,7 @@ MAILTO=""
 SUBJECT=""
 MIMETYPE="html"
 HEADERS="no"
+PLAINTEXT="no"
 
 # If no arguments passed
 if [[ $# -eq 0 ]]; then
@@ -42,6 +43,9 @@ while [[ $# -gt 1 ]]; do
     ;;
     -t)
     HEADERS="yes"
+    ;;
+    --text)
+    PLAINTEXT="yes"
     ;;
     *)
     # unknown option
@@ -99,9 +103,17 @@ fi
 # Now comes the message body
 
 # Send mail through Mailgun API
-curl -s --user $APIKEY $URL \
-  -F from="$MAILFROM" \
-  -F to="$MAILTO" \
-  -F subject="$SUBJECT" \
-  -F html="<-;type=$MIMETYPE" >> $LOG 2>&1
+if [[ "$PLAINTEXT" = "yes" ]]; then
+  curl -s --user $APIKEY $URL \
+    -F from="$MAILFROM" \
+    -F to="$MAILTO" \
+    -F subject="$SUBJECT" \
+    -F text="<-" >> $LOG 2>&1
+else
+  curl -s --user $APIKEY $URL \
+    -F from="$MAILFROM" \
+    -F to="$MAILTO" \
+    -F subject="$SUBJECT" \
+    -F html="<-;type=$MIMETYPE" >> $LOG 2>&1
+fi
 

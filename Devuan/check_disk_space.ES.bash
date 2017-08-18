@@ -14,6 +14,7 @@ LIMITE="90"
 # Destinatario del correo electrónico
 DESTINATARIO="sysadmin@linuxito.com"
 MAILER="/usr/bin/mail"
+#MAILER='/root/scripts/mailgun-mta.sh --text -r "Linuxito <root@linuxito.com>"'
 
 # Nombre del servidor
 SERVIDOR=$(hostname)

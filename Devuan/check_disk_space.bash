@@ -14,6 +14,7 @@ LIMIT="90"
 # Email address for the alerts
 MAILTO="sysadmin@linuxito.com"
 MAILER="/usr/bin/mail"
+#MAILER='/root/scripts/mailgun-mta.sh --text -r "Linuxito <root@linuxito.com>"'
 
 # Host name
 HOST=$(hostname)
