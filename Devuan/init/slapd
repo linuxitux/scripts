@@ -1,0 +1,824 @@
+#!/bin/sh
+
+#====================================================================
+# Start/stop script for OpenLDAP (2.2 minimum)
+# (http://www.openldap.org).
+# Use BerkeleyDB utilities and save data in LDIF format.
+#
+# chkconfig: 2345 27 73
+# description: OpenLDAP
+#
+### BEGIN INIT INFO
+# Provides:          slapd
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Should-Start:      $network $time
+# Should-Stop:       $network $time
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: OpenLDAP
+# Description:       OpenLDAP init script provided by LTB-project.org
+### END INIT INFO
+#
+# Copyright (C) 2008 Jonathan CLARKE
+# Copyright (C) 2007 Olivier LI-KIANG-CHEONG
+# Copyright (C) 2007 Thomas CHEMINEAU
+# Copyright (C) 2005 Sebastien BAHLOUL
+# Copyright (C) 2005 Raphael OUAZANA
+# Copyright (C) 2005 Clement OUDOT
+# Copyright (C) 2010 LTB-project.org
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# GPL License: http://www.gnu.org/licenses/gpl.txt
+#
+#====================================================================
+
+export LD_LIBRARY_PATH="/usr/local/lib:/usr/local/pgsql/lib"
+
+#====================================================================
+# Version
+#====================================================================
+VERSION="2.2"
+
+#====================================================================
+# Default parameters (if /etc/default/{script_name} is not present)
+#====================================================================
+# IP and port to listen (use wildcard * in IP to listen on all interfaces)
+IP="*"
+SSLIP="*"
+PORT="389"
+SSLPORT="636"
+LDAPI_SOCKETDIR=""
+LDAPI_SOCKETURL=""
+
+# OpenLDAP directory and files
+SLAPD_PATH="/usr/local"
+SLAPD_PID_FILE="$SLAPD_PATH/var/run/openldap/slapd.pid"
+SLAPD_CONF="$SLAPD_PATH/etc/openldap/slapd.conf"
+SLAPD_CONF_DIR=""
+SLAPD_SERVICES="ldap://$IP:$PORT ldaps://$SSLIP:$SSLPORT"
+SLAPD_PARAMS=""
+SLAPD_BIN="$SLAPD_PATH/libexec/slapd"
+SLAPD_USER="ldap"
+SLAPD_GROUP="ldap"
+SLAPD_SYSLOG_LOCAL_USER="local4"
+
+SLAPADD_BIN="$SLAPD_PATH/sbin/slapadd"
+SLAPADD_PARAMS="-q"
+SLAPCAT_BIN="$SLAPD_PATH/sbin/slapcat"
+SLAPINDEX_BIN="$SLAPD_PATH/sbin/slapindex"
+SLAPTEST_BIN="$SLAPD_PATH/sbin/slaptest"
+
+SLURPD_ACTIVATE="0"
+SLURPD_PID_FILE="$SLAPD_PATH/var/run/openldap/slurpd.pid"
+SLURPD_PARAMS=""
+SLURPD_BIN="$SLAPD_PATH/libexec/slurpd"
+
+# Other
+TIMEOUT="60"      # Max time to stop process
+FD_LIMIT="2048"   # Max file descriptor
+DEBUG_LEVEL="256" # Debug loglevel
+
+# Script specific
+PROG_NAME=`basename $0 | sed 's/^[KS][0-9][0-9]//'` # For nice messages
+OS=`uname -s`   # To adapt message printing
+MYUID=`id -u`     # For UNIX compatibility => modify this command
+MYGID=`id -g`     # For UNIX compatibility => modify this command
+PS_COMMAND="ps -efww"   # This ensures full width for ps output but doesn't work on Solaris - use "ps -ef"
+
+# Return functions' value
+RETVAL=""
+
+#====================================================================
+# Message function
+#====================================================================
+message() {
+    # $1: syslog level
+    # $2: message
+
+    # Log to syslog
+    logger -p "$SLAPD_SYSLOG_LOCAL_USER.$1" -t $PROG_NAME -i "$2"
+
+    # Output to console
+    if [ "$1" = "alert" ]
+    then
+        echo "$PROG_NAME: $2">&2
+    else
+        echo "$PROG_NAME: $2">&1
+    fi
+}
+
+#====================================================================
+# Specific functions
+#====================================================================
+
+get_confvalues() {
+    # $1: parameter
+    # $RETVAL: list of values
+
+        # Search in conffile or backconfig
+    if [ -n "$SLAPD_CONF_DIR" ]; then
+        case $1 in
+    directory)
+        backconfig_get_values "olcDbDirectory"
+    ;;
+    suffix)
+        backconfig_get_values "olcSuffix" "(|(objectclass=olcBdbConfig)(objectclass=olcHdbConfig)(objectclass=olcMdbConfig))"
+    ;;
+        *)
+        RETVAL=""
+    ;;
+    esac
+        else
+        conffile_get_values $1
+    fi
+}
+
+conffile_get_values() {
+    # $1: parameter in slapd.conf
+    # $RETVAL: list of values
+
+    list=`sed "s/\r//" $SLAPD_CONF | grep "^$1[[:space:]]" | grep -v '^#' | sed "s/$1[[:space:]]*//" | sed "s/ /#20/g"| sed -e 's/"//g'`
+
+    if [ "$list" ]; then
+        RETVAL="$list"
+    else
+        RETVAL=""
+    fi
+}
+
+backconfig_get_values() {
+    # $1: parameter
+    # $2: LDAP filter (optional)
+    # $RETVAL: list of returned values
+
+    if [ -z "$SLAPD_CONF_DIR" -o ! -d "$SLAPD_CONF_DIR" ]
+    then
+        message "alert" "[ALERT] Could not parse configuration directory"
+        RETVAL=""
+        return
+    fi
+
+    slapcat_cmd="$SLAPCAT_BIN -F $SLAPD_CONF_DIR -b cn=config"
+    if [ -n "$2" ]
+    then
+        if [ -n "$SU" ]; then
+            slapcat_cmd="$slapcat_cmd -a '$2'"
+        else
+            slapcat_cmd="$slapcat_cmd -a $2"
+        fi
+    fi
+    if [ -z "$SU" ]
+    then
+        list=`$slapcat_cmd | perl -p0e 's/\n //g' | grep "^$1:" | sed "s/$1: //" | sed "s/ /#20/g"`
+    else
+        list=`$SU "$slapcat_cmd" | perl -p0e 's/\n //g' | grep "^$1:" | sed "s/$1: //" | sed "s/ /#20/g"`
+    fi
+
+    if [ -n "$list" ]; then
+        RETVAL="$list"
+    else
+        RETVAL=""
+    fi
+}
+
+
+#====================================================================
+# Load specific parameters
+#====================================================================
+if [ -f /etc/default/$PROG_NAME ]
+then
+    . /etc/default/$PROG_NAME
+    message "info" "[INFO] Using /etc/default/$PROG_NAME for configuration"
+else
+    message "info" "[INFO] Using built-in configuration - this may cause some problems"
+fi
+
+#====================================================================
+# Initiate 'su' command
+#====================================================================
+if [ "$SLAPD_USER" -a $MYUID -eq 0 ]
+then
+    SU="su -s /bin/bash - $SLAPD_USER -c "
+fi
+
+#====================================================================
+# Initial checks
+#====================================================================
+
+# Make sure the pidfile directory exists with correct permissions
+piddir=`dirname "$SLAPD_PID_FILE"`
+if [ ! -d "$piddir" ]; then
+    mkdir -p "$piddir"
+    [ -z "$SLAPD_USER" ] || chown -R "$SLAPD_USER" "$piddir"
+    [ -z "$SLAPD_GROUP" ] || chgrp -R "$SLAPD_GROUP" "$piddir"
+fi
+
+# Rights to execute binaries
+for i in "$SLAPD_BIN" "$SLAPCAT_BIN" "$SLAPINDEX_BIN" "$SLAPTEST_BIN"
+do
+    if [ ! -x $i ]
+    then
+        message "alert" "[ALERT] Can't execute $i"
+        exit 1
+    fi
+done
+
+# Rights to read configuration
+if [ "$SLAPD_CONF" -a ! -r "$SLAPD_CONF" ]
+then
+    message "alert" "[ALERT] Can't read $SLAPD_CONF"
+    exit 1
+fi
+
+# Activate slurpd? (get from configuration file)
+if [ -n "$SLAPD_CONF" -a ! -d "$SLAPD_CONF_DIR" ]; then
+    SLURPD_ACTIVATE=`grep "^replica" $SLAPD_CONF | wc -l`
+fi
+
+# Right to execute slurpd, if used
+if [ $SLURPD_ACTIVATE -ne 0 -a ! -x "$SLURPD_BIN" ]
+then
+    message "alert" "[ALERT] Can't execute $SLURPD_BIN"
+    exit 1
+fi
+
+# Is there a configuration directory ?
+if [ "$SLAPD_CONF_DIR" -a ! -w "$SLAPD_CONF_DIR" ]
+then
+    message "alert" "[ALERT] Can't write to configuration directory $SLAPD_CONF_DIR"
+    exit 1
+fi
+
+# Are you root (for port < 1024)?
+if [ $PORT -lt 1024 -a $MYUID -ne 0 ]
+then
+    message "alert" "[ALERT] Only root can launch OpenLDAP on port $PORT"
+    exit 1
+fi
+
+# Create LDAPI socket
+if [ "$LDAPI_SOCKETDIR" -a ! -r "$LDAPI_SOCKETDIR" ]
+then
+    message "info" "[INFO] Create LDAPI socket dir $LDAPI_SOCKETDIR"
+    mkdir -p "$LDAPI_SOCKETDIR"
+    [ -z "$SLAPD_USER" ] || chown -R "$SLAPD_USER" "$LDAPI_SOCKETDIR"
+    [ -z "$SLAPD_GROUP" ] || chgrp -R "$SLAPD_GROUP" "$LDAPI_SOCKETDIR"
+fi
+
+#====================================================================
+# Functions
+#====================================================================
+start_slapd() {
+
+    # $1: debug level
+
+    # Exit 0 if slapd is already running
+    # LSB compliance
+    slapd_status
+
+    if [ $? -eq 0 ]
+    then
+        message "info" "[OK] OpenLDAP is already running"
+        exit 0
+    fi
+
+    # Start message
+    message "info" "[INFO] Launching OpenLDAP..."
+
+    # File descriptor limit, only for root
+    if [ $MYUID -eq 0 ]
+    then
+        ulimit -n $FD_LIMIT
+        if [ $? -eq 0 ]
+        then
+            message "info" "[OK] File descriptor limit set to $FD_LIMIT"
+        else
+            message "warning" "[WARNING] Fail to set file descriptor limit to $FD_LIMIT, going to next step"
+        fi
+    else
+        message "info" "[INFO] File descriptor limit not modified (require root privileges)"
+    fi
+
+    # Parameters
+    if [ "$SLAPD_CONF_DIR" ]
+    then
+        SLAPD_PARAMS="$SLAPD_PARAMS -F $SLAPD_CONF_DIR"
+    elif [ "$SLAPD_CONF" ]
+    then
+        SLAPD_PARAMS="$SLAPD_PARAMS -f $SLAPD_CONF"
+    fi
+
+    if [  "$SLAPD_USER" -a $MYUID -eq 0 ]
+    then
+        SLAPD_PARAMS="$SLAPD_PARAMS -u $SLAPD_USER"
+    fi
+
+    if [ "$SLAPD_GROUP" -a $MYGID -eq 0 ]
+    then
+        SLAPD_PARAMS="$SLAPD_PARAMS -g $SLAPD_GROUP"
+    fi
+
+    if [ "$SLAPD_SYSLOG_LOCAL_USER" ]
+    then
+        SLAPD_PARAMS="$SLAPD_PARAMS -l $SLAPD_SYSLOG_LOCAL_USER"
+    fi
+
+    # It's time to start slapd
+
+    if [ -n "$1" ]; then
+        $SLAPD_BIN -h "$SLAPD_SERVICES" $SLAPD_PARAMS -d $1
+    else
+        $SLAPD_BIN -h "$SLAPD_SERVICES" $SLAPD_PARAMS
+        sleep 1
+
+        # Presence of PID file
+        if [ ! -r $SLAPD_PID_FILE ]
+        then
+            message "alert" "[ALERT] No PID file for OpenLDAP"
+            exit 1
+        fi
+
+        # Is slapd launched?
+        PID=`cat $SLAPD_PID_FILE`
+        if [ ! -e /proc/$PID ]
+        then
+            message "alert" "[ALERT] OpenLDAP not running"
+            exit 1
+        else
+            message "info" "[OK] OpenLDAP started"
+        fi
+    fi
+}
+
+start_slurpd() {
+    if [ $SLURPD_ACTIVATE -eq 0 ]
+    then
+        return 1
+    fi
+
+    # Start message
+    message "info" "[INFO] Launching OpenLDAP replication..."
+
+    # Parameters
+    if [ "$SLAPD_CONF_DIR" ]
+    then
+        SLAPD_PARAMS="$SLAPD_PARAMS -F $SLAPD_CONF_DIR"
+    elif [ "$SLAPD_CONF" ]
+    then
+        SLAPD_PARAMS="$SLAPD_PARAMS -f $SLAPD_CONF"
+    fi
+
+    # It's time to start slurpd
+    if [ -z "$SU" ]
+    then
+        $SLURPD_BIN $SLURPD_PARAMS
+    else
+        $SU "$SLURPD_BIN $SLURPD_PARAMS"
+    fi
+    sleep 1
+
+    # Presence of PID file
+    if [ ! -r $SLURPD_PID_FILE ]
+    then
+        message "alert" "[ALERT] No PID file for slurpd"
+        exit 1
+    fi
+
+    # Is slurpd launched?
+    PID=`cat $SLURPD_PID_FILE`
+    if [ ! -e /proc/$PID ]
+    then
+        message "alert" "[ALERT] slurpd not running"
+        exit 1
+    else
+        message "info" "[OK] OpenLDAP replication started"
+    fi
+}
+
+stop_slapd() {
+    # Stop message
+    message "info" "[INFO] Halting OpenLDAP..."
+
+    # Presence of PID file
+    if [ ! -r $SLAPD_PID_FILE ]
+    then
+        message "info" "[INFO] Can't read PID file, to stop OpenLDAP try: $0 forcestop"
+        return 1
+    else
+        PID=`cat $SLAPD_PID_FILE`
+        kill -INT $PID
+
+        # Waiting loop
+        i=0
+        while [ -e /proc/$PID ]
+        do
+            if [ $i -eq $TIMEOUT ]
+            then
+                # Timeout
+                message "alert" "[ALERT] OpenLDAP still running (PID $PID), try: $0 forcestop"
+                exit 1
+            fi
+            i=`expr $i + 1`
+            sleep 1
+        done
+
+        message "info" "[OK] OpenLDAP stopped after $i seconds"
+    fi
+}
+
+stop_slurpd() {
+    # Desactivate slurpd?
+    if [ $SLURPD_ACTIVATE -eq 0 ]
+    then
+        return 1
+    fi
+
+    # Stop message
+    message "info" "[INFO] Halting OpenLDAP replication..."
+
+    # Presence of PID file
+    if [ ! -r $SLURPD_PID_FILE ]
+    then
+        message "warning" "[WARNING] Can't read PID file, to stop slurpd try: $0 forcestop"
+    else
+        PID=`cat $SLURPD_PID_FILE`
+        kill -INT $PID
+
+        # Waiting loop
+        i=0
+        while [ -e /proc/$PID ]
+        do
+            if [ $i -eq $TIMEOUT ]
+            then
+                # Timeout, need to kill
+                message "alert" "[ALERT] slurpd still running (PID $PID), try: $0 forcestop"
+                return 1
+            fi
+            i=`expr $i + 1`
+            sleep 1
+        done
+
+        message "info" "[OK] OpenLDAP replication stopped after $i seconds"
+    fi
+}
+
+forcestop() {
+    # Stop message
+    message "info" "[INFO] Killing OpenLDAP with force..."
+
+    # Presence of PID file
+    if [ ! -r $SLAPD_PID_FILE ]
+    then
+        # Escape special characters into $SLAPD_SERVICES
+        slapd_services="`echo "$SLAPD_SERVICES" | sed 's/\*/\\\*/g'`"
+
+        # Check if any slapd process are running
+        if [ `$PS_COMMAND | grep $SLAPD_BIN | grep "$slapd_services" | grep -v grep | wc -l` -eq 0 ]
+        then
+            message "info" "[INFO] Found no OpenLDAP process running with $SLAPD_SERVICES"
+        else
+            # Try a killall
+            /usr/bin/killall -KILL $SLAPD_BIN
+
+            if [ $? -eq 0 ]
+            then
+                message "info" "[OK] All OpenLDAP process killed with force"
+            else
+                message "alert" "[ALERT] Unable to kill OpenLDAP with force"
+                exit 1
+            fi
+        fi
+    else
+        PID=`cat $SLAPD_PID_FILE`
+        kill -KILL $PID
+
+        if [ $? -eq 0 ]
+        then
+            message "info" "[OK] OpenLDAP process killed with force (PID $PID)"
+        else
+            message "alert" "[ALERT] Unable to kill OpenLDAP with force (PID $PID)"
+            exit 1
+        fi
+    fi
+
+    # Stop message
+    message "info" "[INFO] Killing OpenLDAP replication with force..."
+
+    # Presence of PID file
+    if [ ! -r $SLURPD_PID_FILE ]
+    then
+        # Check if any slapd process are running
+        if [ `$PS_COMMAND | grep $SLURPD_BIN | grep -v grep | wc -l` -eq 0 ]
+        then
+            message "info" "[INFO] Found no slurpd process running"
+        else
+            # Try a killall
+            /usr/bin/killall -KILL $SLURPD_BIN
+
+            if [ $? -eq 0 ]
+            then
+                message "info" "[OK] slurpd process killed with force"
+            else
+                message "alert" "[ALERT] Unable to kill slurpd with force"
+                exit 1
+            fi
+        fi
+    else
+        PID=`cat $SLURPD_PID_FILE`
+        kill -KILL $PID
+
+        if [ $? -eq 0 ]
+        then
+            message "info" "[OK] slurpd process killed with force (PID $PID)"
+        else
+            message "alert" "[ALERT] Unable to kill slurpd with force (PID $PID)"
+            exit 1
+        fi
+    fi
+}
+
+slapd_status() {
+    # Return 0 if slapd is running, 1 if slapd is stopped, 2 if we can't say
+    if [ ! -r $SLAPD_PID_FILE ]
+    then
+        # Escape special characters into $SLAPD_SERVICES
+        slapd_services="`echo "$SLAPD_SERVICES" | sed 's/\*/\\\*/g'`"
+
+        # Check if any slapd process are running
+        if [ `$PS_COMMAND | grep $SLAPD_BIN | grep "$slapd_services" | grep -v grep | wc -l` -eq 0 ]
+        then
+            return 1
+        else
+            return 2
+        fi
+    else
+        PID=`cat $SLAPD_PID_FILE`
+    fi
+
+    if [ ! -e /proc/$PID ]
+    then
+        return 1
+    else
+        return 0
+    fi
+}
+
+display_status() {
+
+    # Print script version
+    message "info" "[INFO] LDAP Tool Box OpenLDAP init script version $VERSION" 
+
+    # Get status
+    slapd_status
+
+    status=$?
+
+    if [ $status -eq 0 ]
+    then
+        PID=`cat $SLAPD_PID_FILE`
+
+        message "info" "[INFO] Process OpenLDAP is running (PID $PID)"
+        message "info" "[INFO] Listening to services $SLAPD_SERVICES"
+
+        CPU=`ps -p $PID -o %cpu=`
+        MEM=`ps -p $PID -o %mem=`
+
+        message "info" "[INFO] Process usage: $CPU% CPU / $MEM% MEM"
+
+
+    fi
+
+    if [ $status -eq 1 ]
+    then
+        message "info" "[INFO] Process OpenLDAP is not running"
+    fi
+
+    if [ $status -eq 2 ]
+    then
+        message "info" "[INFO] Unable to determine OpenLDAP status"
+    fi
+
+    # Get detected suffix
+    get_confvalues "directory"
+    dbdirs=$RETVAL
+    get_confvalues "suffix"
+    dbsufs=$RETVAL
+
+    if [ ! -z "$dbdirs" -o ! -z "$dbsufs" ]
+    then
+        i=1
+        for dbdir in $dbdirs
+        do
+            # Table is not allowed, so we use awk
+            suf=`echo $dbsufs | awk -v j="$i" 'BEGIN{OFS=" "} {print $j}'`
+            sufprint=`echo $suf | sed "s/#20/ /"`
+            if [ ! -z $suf ]
+            then
+                message "info" "[INFO] Detected suffix: $sufprint"
+            fi
+            i=`expr $i + 1`
+        done
+    fi
+
+    exit $status
+}
+
+configtest() {
+    # Start message
+    message "info" "[INFO] Launching OpenLDAP configuration test..."
+
+    SLAPTEST_PARAMS="-u"
+
+    if [ "$SLAPD_CONF_DIR" ]
+    then
+        SLAPTEST_PARAMS="$SLAPTEST_PARAMS -F $SLAPD_CONF_DIR"
+    elif [ "$SLAPD_CONF" ]
+    then
+        SLAPTEST_PARAMS="$SLAPTEST_PARAMS -f $SLAPD_CONF"
+    fi
+
+    # slaptest
+    if [ -z "$SU" ]
+    then
+        $SLAPTEST_BIN $SLAPTEST_PARAMS > /dev/null 2>&1
+    else
+        $SU "$SLAPTEST_BIN $SLAPTEST_PARAMS > /dev/null 2>&1"
+    fi
+
+    if [ $? -eq 0 ]
+    then
+        message "info" "[OK] OpenLDAP configuration test successful"
+    else
+        message "alert" "[ALERT] OpenLDAP configuration test failed"
+        exit 1
+    fi
+}
+
+backupconfig() {
+    # Start message
+    message "info" "[INFO] Launching OpenLDAP configuration backup..."
+
+    # Backup directory
+    mkdir -p "$BACKUP_PATH"
+
+    file=""
+
+    if [ "$SLAPD_CONF_DIR" ]
+    then
+        file="$BACKUP_PATH/config-$BACKUP_SUFFIX"
+
+        # slapcat
+        if [ -z "$SU" ]
+        then
+            $SLAPCAT_BIN -n0 -F $SLAPD_CONF_DIR -l "$file"
+            ret=$?
+        else
+            $SU "$SLAPCAT_BIN -n0 -F $SLAPD_CONF_DIR" > "$file"
+            ret=$?
+            chown $SLAPD_USER:$SLAPD_GROUP $file
+        fi
+
+    elif [ "$SLAPD_CONF" ]
+    then
+        file="$BACKUP_PATH/slapd-`date +%Y%m%d%H%M%S`.conf"
+        cp $SLAPD_CONF $file
+        ret=$?
+    fi
+
+    # alert
+    if [ $ret -ne 0 ]
+    then
+        message "alert" "[ALERT] OpenLDAP configuration backup failed"
+        exit 1
+    fi
+
+    message "info" "[OK] Configuration saved in $file"
+
+}
+
+restoreconfig() {
+    # Start message
+    message "info" "[INFO] Launching OpenLDAP configuration restore..."
+
+    if [ "$SLAPD_CONF_DIR" ]
+    then
+        # Get the most recent backup of cn=config
+        file=`ls -1t "$BACKUP_PATH/config-"* 2>/dev/null | head -1`
+
+        if [ -z $file ]; then
+            message "info" "[INFO] No configuration backup found, skipping..."
+        else
+            message "info" "[INFO] Restore configuration file $file"
+
+            # Delete current data
+            if [ -z "$SU" ]
+            then
+                rm -rf "$SLAPD_CONF_DIR/"*
+            else
+                $SU "rm -rf $SLAPD_CONF_DIR/"*
+            fi
+
+            # Import backup
+            if [ -z "$SU" ]
+            then
+                $SLAPADD_BIN -n0 -F $SLAPD_CONF_DIR -l $file
+            else
+                $SU "$SLAPADD_BIN -n0 -F $SLAPD_CONF_DIR -l $file"
+            fi
+        fi
+
+    elif [ "$SLAPD_CONF" ]
+    then
+        # Get the most recent backup of slapd.conf
+        file=`ls -1t "$BACKUP_PATH/slapd-"*.conf 2>/dev/null | head -1`
+
+        if [ -z $file ]; then
+            message "info" "[INFO] No configuration backup found, skipping..."
+        else
+            message "info" "[INFO] Restore configuration file $file"
+            cp -f $file $SLAPD_CONF
+        fi
+    fi
+
+    # alert
+    if [ $? -ne 0 ]
+    then
+        message "alert" "[ALERT] OpenLDAP configuration restore failed"
+        exit 1
+    fi
+    message "info" "[OK] Configuration restored"
+}
+
+#====================================================================
+# Action switch
+#====================================================================
+case $1 in
+    start)
+    configtest
+    start_slurpd
+    start_slapd
+    ;;
+    stop)
+    stop_slapd
+    stop_slurpd
+    ;;
+    forcestop)
+    forcestop
+    ;;
+    restart)
+    configtest
+    stop_slapd
+    stop_slurpd
+    start_slurpd
+    start_slapd
+    ;;
+    debug)
+    stop_slapd
+    stop_slurpd
+    start_slurpd
+    start_slapd $DEBUG_LEVEL
+    ;;
+    force-reload)
+    configtest
+    forcestop
+    start_slurpd
+    start_slapd
+    ;;
+    status)
+    display_status
+    ;;
+    configtest)
+    configtest
+    ;;
+    backupconfig)
+    backupconfig
+    ;;
+    restoreconfig)
+    stop_slapd
+    stop_slurpd
+    restoreconfig
+    configtest
+    start_slurpd
+    start_slapd
+    ;;
+    *)
+    echo "Usage: $0 {start|stop|forcestop|restart|debug|force-reload|status|configtest|backupconfig|restoreconfig}"
+    exit 1
+    ;;
+esac
+
+#====================================================================
+# Exit
+#====================================================================
+exit 0
+
