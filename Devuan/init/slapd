@@ -1,9 +1,10 @@
 #!/bin/sh
 
 #====================================================================
-# Start/stop script for OpenLDAP (2.2 minimum)
-# (http://www.openldap.org).
-# Use BerkeleyDB utilities and save data in LDIF format.
+# Start/stop script for OpenLDAP (2.4 minimum)
+# (http://www.openldap.org) with SQL as backend.
+# Saves data in LDIF format.
+# Based on the work by LTB-project.org
 #
 # chkconfig: 2345 27 73
 # description: OpenLDAP
@@ -17,7 +18,7 @@
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: OpenLDAP
-# Description:       OpenLDAP init script provided by LTB-project.org
+# Description:       OpenLDAP init script
 ### END INIT INFO
 #
 # Copyright (C) 2008 Jonathan CLARKE
