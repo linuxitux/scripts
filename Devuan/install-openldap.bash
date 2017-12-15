@@ -19,7 +19,6 @@ make dist clean
   --enable-modules \
   --enable-rlookups \
   --with-tls=openssl \
-  --without-cyrus-sasl \
   --enable-mdb \
   --disable-bdb \
   --disable-dnssrv \
@@ -38,7 +37,8 @@ make dist clean
   --disable-ipv6 \
 || exit 1
 
-make -j4 \
+make -j4 depend \
+&& make -j4 \
 && make install \
 && echo -e "\n'$(basename $(pwd))' installed OK.\n" \
 && cd ..
