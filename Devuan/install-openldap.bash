@@ -35,6 +35,8 @@ make dist clean
   --disable-sock \
   --disable-sql \
   --disable-ipv6 \
+  --enable-ppolicy=yes \
+  --enable-auditlog=yes \
 || exit 1
 
 make -j4 depend \
