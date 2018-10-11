@@ -39,5 +39,4 @@ cd $DRIVE_BASE_DIR
 drive push -files -quiet $DRIVE_BACKUP_DIR
 
 # Empty trash to avoid exceeding your drive quota
-/root/gopath/bin/drive emptytrash
-
+/root/gopath/bin/drive emptytrash -quiet
