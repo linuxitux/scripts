@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# Dirección IP del servidor
+IP="10.10.50.101"
+
+# Interfaz red pública
+IF0="eth0"
+
+# Interfaz red privada
+IF1="eth1"
+
+# Vaciar todas las cadenas y contadores
+iptables -F
+iptables -X
+iptables -Z
+
+# Activar diferentes protecciones a nivel kernel
+#
+# Ignorar broadcasts icmp
+echo -n '1' > /proc/sys/net/ipv4/icmp_echo_ignore_broadcasts
+# Deshabilitar Source Routing
+echo -n '0' > /proc/sys/net/ipv4/conf/all/accept_source_route
+# Deshabilitar ICMP redirects
+echo -n '0' > /proc/sys/net/ipv4/conf/all/accept_redirects
+# Proteger contra "bad error messages"
+echo -n '1' > /proc/sys/net/ipv4/icmp_ignore_bogus_error_responses
+# Deshabilitar ip forwarding
+echo -n '0' > /proc/sys/net/ipv4/ip_forward
+# Loguear sospechosos, "source routed" y redirects
+echo -n '1' >/proc/sys/net/ipv4/conf/all/log_martians
+
+# Por defecto, bloquear todo en las cadenas INPUT y FORWARD
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+
+# Permitir todo el tráfico saliente
+iptables -P OUTPUT ACCEPT
+
+# Bloquear conexiones TCP nuevas que no comiencen con SYN
+iptables -A INPUT -i $IF0 -p tcp ! --syn -m state --state NEW -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "TCP RST,ACK,FIN"
+iptables -A INPUT -i $IF0 -p tcp ! --syn -m state --state NEW -j DROP
+
+# Bloquear fragmentos entrantes
+iptables -A INPUT -i $IF0 -f -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "Fragment Packets"
+iptables -A INPUT -i $IF0 -f -j DROP
+
+# Bloquear paquetes malformados
+iptables -A INPUT -i $IF0 -p tcp --tcp-flags ALL FIN,URG,PSH -j DROP
+iptables -A INPUT -i $IF0 -p tcp --tcp-flags ALL ALL -j DROP
+iptables -A INPUT -i $IF0 -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
+
+# Bloquear NULL packets
+iptables -A INPUT -i $IF0 -p tcp --tcp-flags ALL NONE -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "NULL Packets"
+iptables -A INPUT -i $IF0 -p tcp --tcp-flags ALL NONE -j DROP
+
+# Bloquear paquetes "Christmas tree" malformados
+iptables -A INPUT -i $IF0 -p tcp --tcp-flags SYN,FIN SYN,FIN -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "XMAS Packets"
+iptables -A INPUT -i $IF0 -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
+
+# Bloquear ataques Fin Scan
+iptables -A INPUT -i $IF0 -p tcp --tcp-flags FIN,ACK FIN -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "Fin Packets Scan"
+iptables -A INPUT -i $IF0 -p tcp --tcp-flags FIN,ACK FIN -j DROP
+
+# Validar flags TCP
+iptables -A INPUT -i $IF0 -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP
+
+# Bloquear paquetes inválidos
+iptables -A INPUT -m conntrack --ctstate INVALID -j DROP
+
+# Permitir todo en la interfaz loopback
+iptables -A INPUT -i lo -j ACCEPT
+
+# Permitir todo en la interfaz privada
+iptables -A INPUT -i $IF1 -j ACCEPT
+
+# Permitir paquetes de conexiones establecidas
+iptables -A INPUT -p all -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+# Permitir ping
+iptables -A INPUT -p icmp --icmp-type 8 -m conntrack --ctstate NEW -j ACCEPT
+
+# Permitir conexiones hacia puertos locales desde la red pública 22
+# NINGUNA (sólo tráfico entrante hacia la red privada 10.10.50.0/24)
+
+# Loguear y rechazar el resto
+iptables -A INPUT -j LOG
+iptables -A FORWARD -j LOG
+iptables -A INPUT -j DROP
