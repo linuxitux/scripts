@@ -9,7 +9,8 @@ tar -axf openldap-${OPENLDAP_VERSION}.tgz \
 export CFLAGS="-O3 -march=native -mtune=native"
 export CXXFLAGS=${CFLAGS}
 
-INSTALLDIR="/usr/local/openldap-${OPENLDAP_VERSION}"
+INSTALLDIR="/usr/local"
+#INSTALLDIR="/usr/local/openldap-${OPENLDAP_VERSION}"
 
 make dist clean
 
